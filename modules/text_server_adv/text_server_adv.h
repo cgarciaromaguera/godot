@@ -1,32 +1,32 @@
-/*************************************************************************/
-/*  text_server_adv.h                                                    */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
+/**************************************************************************/
+/*  text_server_adv.h                                                     */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
 
 #ifndef TEXT_SERVER_ADV_H
 #define TEXT_SERVER_ADV_H
@@ -72,7 +72,6 @@
 #include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/templates/hash_set.hpp>
 #include <godot_cpp/templates/rid_owner.hpp>
-
 #include <godot_cpp/templates/vector.hpp>
 
 using namespace godot;
@@ -88,7 +87,7 @@ using namespace godot;
 #include "core/templates/rid_owner.h"
 #include "scene/resources/texture.h"
 
-#include "modules/modules_enabled.gen.h" // For freetype, msdfgen.
+#include "modules/modules_enabled.gen.h" // For freetype, msdfgen, svg.
 
 #endif
 
@@ -117,6 +116,7 @@ using namespace godot;
 #include FT_ADVANCES_H
 #include FT_MULTIPLE_MASTERS_H
 #include FT_BBOX_H
+#include FT_MODULE_H
 #include FT_CONFIG_OPTIONS_H
 #if !defined(FT_CONFIG_OPTION_USE_BROTLI) && !defined(_MSC_VER)
 #warning FreeType is configured without Brotli support, built-in fonts will not be available.
@@ -158,7 +158,10 @@ class TextServerAdvanced : public TextServerExtension {
 
 	// ICU support data.
 
-	bool icu_data_loaded = false;
+	static bool icu_data_loaded;
+	mutable USet *allowed = nullptr;
+	mutable USpoofChecker *sc_spoof = nullptr;
+	mutable USpoofChecker *sc_conf = nullptr;
 
 	// Font cache data.
 
@@ -168,20 +171,86 @@ class TextServerAdvanced : public TextServerExtension {
 
 	const int rect_range = 1;
 
-	struct FontTexture {
-		Image::Format format;
-		PackedByteArray imgdata;
-		int texture_w = 0;
-		int texture_h = 0;
-		PackedInt32Array offsets;
-		Ref<ImageTexture> texture;
-		bool dirty = true;
+	struct FontTexturePosition {
+		int32_t index = -1;
+		int32_t x = 0;
+		int32_t y = 0;
+
+		FontTexturePosition() {}
+		FontTexturePosition(int32_t p_id, int32_t p_x, int32_t p_y) :
+				index(p_id), x(p_x), y(p_y) {}
 	};
 
-	struct FontTexturePosition {
-		int index = 0;
-		int x = 0;
-		int y = 0;
+	struct Shelf {
+		int32_t x = 0;
+		int32_t y = 0;
+		int32_t w = 0;
+		int32_t h = 0;
+
+		FontTexturePosition alloc_shelf(int32_t p_id, int32_t p_w, int32_t p_h) {
+			if (p_w > w || p_h > h) {
+				return FontTexturePosition(-1, 0, 0);
+			}
+			int32_t xx = x;
+			x += p_w;
+			w -= p_w;
+			return FontTexturePosition(p_id, xx, y);
+		}
+
+		Shelf() {}
+		Shelf(int32_t p_x, int32_t p_y, int32_t p_w, int32_t p_h) :
+				x(p_x), y(p_y), w(p_w), h(p_h) {}
+	};
+
+	struct ShelfPackTexture {
+		int32_t texture_w = 1024;
+		int32_t texture_h = 1024;
+
+		Image::Format format;
+		PackedByteArray imgdata;
+		Ref<ImageTexture> texture;
+		bool dirty = true;
+
+		List<Shelf> shelves;
+
+		FontTexturePosition pack_rect(int32_t p_id, int32_t p_h, int32_t p_w) {
+			int32_t y = 0;
+			int32_t waste = 0;
+			Shelf *best_shelf = nullptr;
+			int32_t best_waste = std::numeric_limits<std::int32_t>::max();
+
+			for (Shelf &E : shelves) {
+				y += E.h;
+				if (p_w > E.w) {
+					continue;
+				}
+				if (p_h == E.h) {
+					return E.alloc_shelf(p_id, p_w, p_h);
+				}
+				if (p_h > E.h) {
+					continue;
+				}
+				if (p_h < E.h) {
+					waste = (E.h - p_h) * p_w;
+					if (waste < best_waste) {
+						best_waste = waste;
+						best_shelf = &E;
+					}
+				}
+			}
+			if (best_shelf) {
+				return best_shelf->alloc_shelf(p_id, p_w, p_h);
+			}
+			if (p_h <= (texture_h - y) && p_w <= texture_w) {
+				List<Shelf>::Element *E = shelves.push_back(Shelf(0, y, texture_w, p_h));
+				return E->get().alloc_shelf(p_id, p_w, p_h);
+			}
+			return FontTexturePosition(-1, 0, 0);
+		}
+
+		ShelfPackTexture() {}
+		ShelfPackTexture(int32_t p_w, int32_t p_h) :
+				texture_w(p_w), texture_h(p_h) {}
 	};
 
 	struct FontGlyph {
@@ -202,7 +271,8 @@ class TextServerAdvanced : public TextServerExtension {
 
 		Vector2i size;
 
-		Vector<FontTexture> textures;
+		Vector<ShelfPackTexture> textures;
+		HashMap<int64_t, int64_t> inv_glyph_map;
 		HashMap<int32_t, FontGlyph> glyph_map;
 		HashMap<Vector2i, Vector2> kerning_map;
 		hb_font_t *hb_handle = nullptr;
@@ -233,6 +303,7 @@ class TextServerAdvanced : public TextServerExtension {
 		int msdf_range = 14;
 		int msdf_source_size = 48;
 		int fixed_size = 0;
+		bool allow_system_fallback = true;
 		bool force_autohinter = false;
 		TextServer::Hinting hinting = TextServer::HINTING_LIGHT;
 		TextServer::SubpixelPositioning subpixel_positioning = TextServer::SUBPIXEL_POSITIONING_AUTO;
@@ -244,6 +315,8 @@ class TextServerAdvanced : public TextServerExtension {
 		BitField<TextServer::FontStyle> style_flags = 0;
 		String font_name;
 		String style_name;
+		int weight = 400;
+		int stretch = 100;
 
 		HashMap<Vector2i, FontForSizeAdvanced *, VariantHasher, VariantComparator> cache;
 
@@ -280,7 +353,7 @@ class TextServerAdvanced : public TextServerExtension {
 	_FORCE_INLINE_ bool _ensure_glyph(FontAdvanced *p_font_data, const Vector2i &p_size, int32_t p_glyph) const;
 	_FORCE_INLINE_ bool _ensure_cache_for_size(FontAdvanced *p_font_data, const Vector2i &p_size) const;
 	_FORCE_INLINE_ void _font_clear_cache(FontAdvanced *p_font_data);
-	void _generateMTSDF_threaded(uint32_t y, void *p_td) const;
+	static void _generateMTSDF_threaded(void *p_td, uint32_t p_y);
 
 	_FORCE_INLINE_ Vector2i _get_size(const FontAdvanced *p_font_data, int p_size) const {
 		if (p_font_data->msdf) {
@@ -305,6 +378,57 @@ class TextServerAdvanced : public TextServerExtension {
 	_FORCE_INLINE_ double _get_extra_advance(RID p_font_rid, int p_font_size) const;
 	_FORCE_INLINE_ Variant::Type _get_tag_type(int64_t p_tag) const;
 	_FORCE_INLINE_ bool _get_tag_hidden(int64_t p_tag) const;
+	_FORCE_INLINE_ int _font_get_weight_by_name(const String &p_sty_name) const {
+		String sty_name = p_sty_name.replace(" ", "").replace("-", "");
+		if (sty_name.find("thin") >= 0 || sty_name.find("hairline") >= 0) {
+			return 100;
+		} else if (sty_name.find("extralight") >= 0 || sty_name.find("ultralight") >= 0) {
+			return 200;
+		} else if (sty_name.find("light") >= 0) {
+			return 300;
+		} else if (sty_name.find("semilight") >= 0) {
+			return 350;
+		} else if (sty_name.find("regular") >= 0) {
+			return 400;
+		} else if (sty_name.find("medium") >= 0) {
+			return 500;
+		} else if (sty_name.find("semibold") >= 0 || sty_name.find("demibold") >= 0) {
+			return 600;
+		} else if (sty_name.find("bold") >= 0) {
+			return 700;
+		} else if (sty_name.find("extrabold") >= 0 || sty_name.find("ultrabold") >= 0) {
+			return 800;
+		} else if (sty_name.find("black") >= 0 || sty_name.find("heavy") >= 0) {
+			return 900;
+		} else if (sty_name.find("extrablack") >= 0 || sty_name.find("ultrablack") >= 0) {
+			return 950;
+		}
+		return 400;
+	}
+	_FORCE_INLINE_ int _font_get_stretch_by_name(const String &p_sty_name) const {
+		String sty_name = p_sty_name.replace(" ", "").replace("-", "");
+		if (sty_name.find("ultracondensed") >= 0) {
+			return 50;
+		} else if (sty_name.find("extracondensed") >= 0) {
+			return 63;
+		} else if (sty_name.find("condensed") >= 0) {
+			return 75;
+		} else if (sty_name.find("semicondensed") >= 0) {
+			return 87;
+		} else if (sty_name.find("semiexpanded") >= 0) {
+			return 113;
+		} else if (sty_name.find("expanded") >= 0) {
+			return 125;
+		} else if (sty_name.find("extraexpanded") >= 0) {
+			return 150;
+		} else if (sty_name.find("ultraexpanded") >= 0) {
+			return 200;
+		}
+		return 100;
+	}
+	_FORCE_INLINE_ bool _is_ital_style(const String &p_sty_name) const {
+		return (p_sty_name.find("italic") >= 0) || (p_sty_name.find("oblique") >= 0);
+	}
 
 	// Shaped text cache data.
 	struct TrimData {
@@ -346,11 +470,13 @@ class TextServerAdvanced : public TextServerExtension {
 			int pos = 0;
 			InlineAlignment inline_align = INLINE_ALIGNMENT_CENTER;
 			Rect2 rect;
+			double baseline = 0;
 		};
 		HashMap<Variant, EmbeddedObject, VariantHasher, VariantComparator> objects;
 
 		/* Shaped data */
 		TextServer::Direction para_direction = DIRECTION_LTR; // Detected text direction.
+		int base_para_direction = UBIDI_DEFAULT_LTR;
 		bool valid = false; // String is shaped.
 		bool line_breaks_valid = false; // Line and word break flags are populated (and virtual zero width spaces inserted).
 		bool justification_ops_valid = false; // Virtual elongation glyphs are added to the string.
@@ -378,18 +504,21 @@ class TextServerAdvanced : public TextServerExtension {
 		/* Intermediate data */
 		Char16String utf16;
 		Vector<UBiDi *> bidi_iter;
-		Vector<Vector2i> bidi_override;
+		Vector<Vector3i> bidi_override;
 		ScriptIterator *script_iter = nullptr;
 		hb_buffer_t *hb_buffer = nullptr;
 
 		HashMap<int, bool> jstops;
 		HashMap<int, bool> breaks;
+		int break_inserts = 0;
 		bool break_ops_valid = false;
 		bool js_ops_valid = false;
 
 		~ShapedTextDataAdvanced() {
 			for (int i = 0; i < bidi_iter.size(); i++) {
-				ubidi_close(bidi_iter[i]);
+				if (bidi_iter[i]) {
+					ubidi_close(bidi_iter[i]);
+				}
 			}
 			if (script_iter) {
 				memdelete(script_iter);
@@ -406,15 +535,92 @@ class TextServerAdvanced : public TextServerExtension {
 	mutable RID_PtrOwner<FontAdvanced> font_owner;
 	mutable RID_PtrOwner<ShapedTextDataAdvanced> shaped_owner;
 
+	struct SystemFontKey {
+		String font_name;
+		TextServer::FontAntialiasing antialiasing = TextServer::FONT_ANTIALIASING_GRAY;
+		bool italic = false;
+		bool mipmaps = false;
+		bool msdf = false;
+		bool force_autohinter = false;
+		int weight = 400;
+		int stretch = 100;
+		int msdf_range = 14;
+		int msdf_source_size = 48;
+		int fixed_size = 0;
+		TextServer::Hinting hinting = TextServer::HINTING_LIGHT;
+		TextServer::SubpixelPositioning subpixel_positioning = TextServer::SUBPIXEL_POSITIONING_AUTO;
+		Dictionary variation_coordinates;
+		double oversampling = 0.0;
+		double embolden = 0.0;
+		Transform2D transform;
+
+		bool operator==(const SystemFontKey &p_b) const {
+			return (font_name == p_b.font_name) && (antialiasing == p_b.antialiasing) && (italic == p_b.italic) && (mipmaps == p_b.mipmaps) && (msdf == p_b.msdf) && (force_autohinter == p_b.force_autohinter) && (weight == p_b.weight) && (stretch == p_b.stretch) && (msdf_range == p_b.msdf_range) && (msdf_source_size == p_b.msdf_source_size) && (fixed_size == p_b.fixed_size) && (hinting == p_b.hinting) && (subpixel_positioning == p_b.subpixel_positioning) && (variation_coordinates == p_b.variation_coordinates) && (oversampling == p_b.oversampling) && (embolden == p_b.embolden) && (transform == p_b.transform);
+		}
+
+		SystemFontKey(const String &p_font_name, bool p_italic, int p_weight, int p_stretch, RID p_font, const TextServerAdvanced *p_fb) {
+			font_name = p_font_name;
+			italic = p_italic;
+			weight = p_weight;
+			stretch = p_stretch;
+			antialiasing = p_fb->_font_get_antialiasing(p_font);
+			mipmaps = p_fb->_font_get_generate_mipmaps(p_font);
+			msdf = p_fb->_font_is_multichannel_signed_distance_field(p_font);
+			msdf_range = p_fb->_font_get_msdf_pixel_range(p_font);
+			msdf_source_size = p_fb->_font_get_msdf_size(p_font);
+			fixed_size = p_fb->_font_get_fixed_size(p_font);
+			force_autohinter = p_fb->_font_is_force_autohinter(p_font);
+			hinting = p_fb->_font_get_hinting(p_font);
+			subpixel_positioning = p_fb->_font_get_subpixel_positioning(p_font);
+			variation_coordinates = p_fb->_font_get_variation_coordinates(p_font);
+			oversampling = p_fb->_font_get_oversampling(p_font);
+			embolden = p_fb->_font_get_embolden(p_font);
+			transform = p_fb->_font_get_transform(p_font);
+		}
+	};
+
+	struct SystemFontCacheRec {
+		RID rid;
+		int index = 0;
+	};
+
+	struct SystemFontCache {
+		Vector<SystemFontCacheRec> var;
+		int max_var = 0;
+	};
+
+	struct SystemFontKeyHasher {
+		_FORCE_INLINE_ static uint32_t hash(const SystemFontKey &p_a) {
+			uint32_t hash = p_a.font_name.hash();
+			hash = hash_murmur3_one_32(p_a.variation_coordinates.hash(), hash);
+			hash = hash_murmur3_one_32(p_a.weight, hash);
+			hash = hash_murmur3_one_32(p_a.stretch, hash);
+			hash = hash_murmur3_one_32(p_a.msdf_range, hash);
+			hash = hash_murmur3_one_32(p_a.msdf_source_size, hash);
+			hash = hash_murmur3_one_32(p_a.fixed_size, hash);
+			hash = hash_murmur3_one_double(p_a.oversampling, hash);
+			hash = hash_murmur3_one_double(p_a.embolden, hash);
+			hash = hash_murmur3_one_real(p_a.transform[0].x, hash);
+			hash = hash_murmur3_one_real(p_a.transform[0].y, hash);
+			hash = hash_murmur3_one_real(p_a.transform[1].x, hash);
+			hash = hash_murmur3_one_real(p_a.transform[1].y, hash);
+			return hash_fmix32(hash_murmur3_one_32(((int)p_a.mipmaps) | ((int)p_a.msdf << 1) | ((int)p_a.italic << 2) | ((int)p_a.force_autohinter << 3) | ((int)p_a.hinting << 4) | ((int)p_a.subpixel_positioning << 8) | ((int)p_a.antialiasing << 12), hash));
+		}
+	};
+	mutable HashMap<SystemFontKey, SystemFontCache, SystemFontKeyHasher> system_fonts;
+	mutable HashMap<String, PackedByteArray> system_font_data;
+
 	void _realign(ShapedTextDataAdvanced *p_sd) const;
 	int64_t _convert_pos(const String &p_utf32, const Char16String &p_utf16, int64_t p_pos) const;
 	int64_t _convert_pos(const ShapedTextDataAdvanced *p_sd, int64_t p_pos) const;
 	int64_t _convert_pos_inv(const ShapedTextDataAdvanced *p_sd, int64_t p_pos) const;
 	bool _shape_substr(ShapedTextDataAdvanced *p_new_sd, const ShapedTextDataAdvanced *p_sd, int64_t p_start, int64_t p_length) const;
-	void _shape_run(ShapedTextDataAdvanced *p_sd, int64_t p_start, int64_t p_end, hb_script_t p_script, hb_direction_t p_direction, TypedArray<RID> p_fonts, int64_t p_span, int64_t p_fb_index);
+	void _shape_run(ShapedTextDataAdvanced *p_sd, int64_t p_start, int64_t p_end, hb_script_t p_script, hb_direction_t p_direction, TypedArray<RID> p_fonts, int64_t p_span, int64_t p_fb_index, int64_t p_prev_start, int64_t p_prev_end);
 	Glyph _shape_single_glyph(ShapedTextDataAdvanced *p_sd, char32_t p_char, hb_script_t p_script, hb_direction_t p_direction, const RID &p_font, int64_t p_font_size);
 
 	_FORCE_INLINE_ void _add_featuers(const Dictionary &p_source, Vector<hb_feature_t> &r_ftrs);
+
+	Mutex ft_mutex;
 
 	// HarfBuzz bitmap font interface.
 
@@ -500,6 +706,12 @@ public:
 	MODBIND2(font_set_style_name, const RID &, const String &);
 	MODBIND1RC(String, font_get_style_name, const RID &);
 
+	MODBIND2(font_set_weight, const RID &, int64_t);
+	MODBIND1RC(int64_t, font_get_weight, const RID &);
+
+	MODBIND2(font_set_stretch, const RID &, int64_t);
+	MODBIND1RC(int64_t, font_get_stretch, const RID &);
+
 	MODBIND2(font_set_name, const RID &, const String &);
 	MODBIND1RC(String, font_get_name, const RID &);
 
@@ -520,6 +732,9 @@ public:
 
 	MODBIND2(font_set_fixed_size, const RID &, int64_t);
 	MODBIND1RC(int64_t, font_get_fixed_size, const RID &);
+
+	MODBIND2(font_set_allow_system_fallback, const RID &, bool);
+	MODBIND1RC(bool, font_is_allow_system_fallback, const RID &);
 
 	MODBIND2(font_set_force_autohinter, const RID &, bool);
 	MODBIND1RC(bool, font_is_force_autohinter, const RID &);
@@ -603,6 +818,7 @@ public:
 	MODBIND3RC(Vector2, font_get_kerning, const RID &, int64_t, const Vector2i &);
 
 	MODBIND4RC(int64_t, font_get_glyph_index, const RID &, int64_t, int64_t, int64_t);
+	MODBIND3RC(int64_t, font_get_char_from_glyph_index, const RID &, int64_t, int64_t);
 
 	MODBIND2RC(bool, font_has_char, const RID &, int64_t);
 	MODBIND1RC(String, font_get_supported_chars, const RID &);
@@ -662,8 +878,8 @@ public:
 	MODBIND2RC(int64_t, shaped_text_get_spacing, const RID &, SpacingType);
 
 	MODBIND7R(bool, shaped_text_add_string, const RID &, const String &, const TypedArray<RID> &, int64_t, const Dictionary &, const String &, const Variant &);
-	MODBIND5R(bool, shaped_text_add_object, const RID &, const Variant &, const Size2 &, InlineAlignment, int64_t);
-	MODBIND4R(bool, shaped_text_resize_object, const RID &, const Variant &, const Size2 &, InlineAlignment);
+	MODBIND6R(bool, shaped_text_add_object, const RID &, const Variant &, const Size2 &, InlineAlignment, int64_t, double);
+	MODBIND5R(bool, shaped_text_resize_object, const RID &, const Variant &, const Size2 &, InlineAlignment, double);
 
 	MODBIND1RC(int64_t, shaped_get_span_count, const RID &);
 	MODBIND2RC(Variant, shaped_get_span_meta, const RID &, int64_t);
@@ -708,7 +924,7 @@ public:
 	MODBIND2RC(String, parse_number, const String &, const String &);
 	MODBIND1RC(String, percent_sign, const String &);
 
-	MODBIND2RC(PackedInt32Array, string_get_word_breaks, const String &, const String &);
+	MODBIND3RC(PackedInt32Array, string_get_word_breaks, const String &, const String &, int64_t);
 
 	MODBIND2RC(int64_t, is_confusable, const String &, const PackedStringArray &);
 	MODBIND1RC(bool, spoof_check, const String &);
@@ -718,6 +934,8 @@ public:
 
 	MODBIND2RC(String, string_to_upper, const String &, const String &);
 	MODBIND2RC(String, string_to_lower, const String &, const String &);
+
+	MODBIND0(cleanup);
 
 	TextServerAdvanced();
 	~TextServerAdvanced();

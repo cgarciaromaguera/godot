@@ -172,18 +172,18 @@ opts.Add(
         "optimize", "Optimization level", "speed_trace", ("none", "custom", "debug", "speed", "speed_trace", "size")
     )
 )
-opts.Add(BoolVariable("debug_symbols", "Build with debugging symbols", True))
+opts.Add(BoolVariable("debug_symbols", "Build with debugging symbols", False))
 opts.Add(BoolVariable("separate_debug_symbols", "Extract debugging symbols to a separate file", False))
 opts.Add(EnumVariable("lto", "Link-time optimization (production builds)", "none", ("none", "auto", "thin", "full")))
 opts.Add(BoolVariable("production", "Set defaults to build Godot for use in production", False))
 
 # Components
 opts.Add(BoolVariable("deprecated", "Enable compatibility code for deprecated and removed features", True))
-opts.Add(EnumVariable("float", "Floating-point precision", "32", ("32", "64")))
+opts.Add(EnumVariable("precision", "Set the floating-point precision level", "single", ("single", "double")))
 opts.Add(BoolVariable("minizip", "Enable ZIP archive support using minizip", True))
 opts.Add(BoolVariable("xaudio2", "Enable the XAudio2 audio driver", False))
-opts.Add(BoolVariable("vulkan", "Enable the vulkan video driver", True))
-opts.Add(BoolVariable("opengl3", "Enable the OpenGL/GLES3 video driver", True))
+opts.Add(BoolVariable("vulkan", "Enable the vulkan rendering driver", True))
+opts.Add(BoolVariable("opengl3", "Enable the OpenGL/GLES3 rendering driver", True))
 opts.Add(BoolVariable("openxr", "Enable the OpenXR driver", True))
 opts.Add(BoolVariable("use_volk", "Use the volk library to load the Vulkan loader dynamically", True))
 opts.Add("custom_modules", "A list of comma-separated directory paths containing custom modules to build.", "")
@@ -200,9 +200,10 @@ opts.Add(EnumVariable("warnings", "Level of compilation warnings", "all", ("extr
 opts.Add(BoolVariable("werror", "Treat compiler warnings as errors", False))
 opts.Add("extra_suffix", "Custom extra suffix added to the base filename of all generated binary files", "")
 opts.Add(BoolVariable("vsproj", "Generate a Visual Studio solution", False))
+opts.Add("vsproj_name", "Name of the Visual Studio solution", "godot")
 opts.Add(BoolVariable("disable_3d", "Disable 3D nodes for a smaller executable", False))
 opts.Add(BoolVariable("disable_advanced_gui", "Disable advanced GUI nodes and behaviors", False))
-opts.Add("build_feature_profile", "Path to a file containing a feature build profile", "")
+opts.Add("build_profile", "Path to a file containing a feature build profile", "")
 opts.Add(BoolVariable("modules_enabled_by_default", "If no, disable all modules except ones explicitly enabled", True))
 opts.Add(BoolVariable("no_editor_splash", "Don't use the custom splash screen for the editor", True))
 opts.Add("system_certs_path", "Use this path as SSL certificates default for editor (for package maintainers)", "")
@@ -217,7 +218,7 @@ opts.Add(BoolVariable("builtin_msdfgen", "Use the built-in MSDFgen library", Tru
 opts.Add(BoolVariable("builtin_glslang", "Use the built-in glslang library", True))
 opts.Add(BoolVariable("builtin_graphite", "Use the built-in Graphite library", True))
 opts.Add(BoolVariable("builtin_harfbuzz", "Use the built-in HarfBuzz library", True))
-opts.Add(BoolVariable("builtin_icu", "Use the built-in ICU library", True))
+opts.Add(BoolVariable("builtin_icu4c", "Use the built-in ICU library", True))
 opts.Add(BoolVariable("builtin_libogg", "Use the built-in libogg library", True))
 opts.Add(BoolVariable("builtin_libpng", "Use the built-in libpng library", True))
 opts.Add(BoolVariable("builtin_libtheora", "Use the built-in libtheora library", True))
@@ -228,7 +229,7 @@ opts.Add(BoolVariable("builtin_mbedtls", "Use the built-in mbedTLS library", Tru
 opts.Add(BoolVariable("builtin_miniupnpc", "Use the built-in miniupnpc library", True))
 opts.Add(BoolVariable("builtin_pcre2", "Use the built-in PCRE2 library", True))
 opts.Add(BoolVariable("builtin_pcre2_with_jit", "Use JIT compiler for the built-in PCRE2 library", True))
-opts.Add(BoolVariable("builtin_recast", "Use the built-in Recast library", True))
+opts.Add(BoolVariable("builtin_recastnavigation", "Use the built-in Recast navigation library", True))
 opts.Add(BoolVariable("builtin_rvo2", "Use the built-in RVO2 library", True))
 opts.Add(BoolVariable("builtin_squish", "Use the built-in squish library", True))
 opts.Add(BoolVariable("builtin_xatlas", "Use the built-in xatlas library", True))
@@ -442,7 +443,7 @@ if env_base["no_editor_splash"]:
 if not env_base["deprecated"]:
     env_base.Append(CPPDEFINES=["DISABLE_DEPRECATED"])
 
-if env_base["float"] == "64":
+if env_base["precision"] == "double":
     env_base.Append(CPPDEFINES=["REAL_T_IS_DOUBLE"])
 
 if selected_platform in platform_list:
@@ -492,6 +493,25 @@ if selected_platform in platform_list:
     env["LINKFLAGS"] = ""
     env.Append(LINKFLAGS=str(LINKFLAGS).split())
 
+    # Feature build profile
+    disabled_classes = []
+    if env["build_profile"] != "":
+        print("Using feature build profile: " + env["build_profile"])
+        import json
+
+        try:
+            ft = json.load(open(env["build_profile"]))
+            if "disabled_classes" in ft:
+                disabled_classes = ft["disabled_classes"]
+            if "disabled_build_options" in ft:
+                dbo = ft["disabled_build_options"]
+                for c in dbo:
+                    env[c] = dbo[c]
+        except:
+            print("Error opening feature build profile: " + env["build_profile"])
+            Exit(255)
+    methods.write_disabled_classes(disabled_classes)
+
     # Platform specific flags.
     # These can sometimes override default options.
     flag_list = platform_flags[selected_platform]
@@ -518,7 +538,7 @@ if selected_platform in platform_list:
     # are actually handled to change compile options, etc.
     detect.configure(env)
 
-    print(f'Building for platform "{selected_platform}", architecture "{env["arch"]}", target "{env["target"]}.')
+    print(f'Building for platform "{selected_platform}", architecture "{env["arch"]}", target "{env["target"]}".')
     if env.dev_build:
         print("NOTE: Developer build, with debug optimization level and debug symbols (unless overridden).")
 
@@ -540,10 +560,19 @@ if selected_platform in platform_list:
             env.Append(CCFLAGS=["/Od"])
     else:
         if env["debug_symbols"]:
+            # Adding dwarf-4 explicitly makes stacktraces work with clang builds,
+            # otherwise addr2line doesn't understand them
+            env.Append(CCFLAGS=["-gdwarf-4"])
             if env.dev_build:
                 env.Append(CCFLAGS=["-g3"])
             else:
                 env.Append(CCFLAGS=["-g2"])
+        else:
+            if methods.using_clang(env) and not methods.is_vanilla_clang(env):
+                # Apple Clang, its linker doesn't like -s.
+                env.Append(LINKFLAGS=["-Wl,-S", "-Wl,-x", "-Wl,-dead_strip"])
+            else:
+                env.Append(LINKFLAGS=["-s"])
 
         if env["optimize"] == "speed":
             env.Append(CCFLAGS=["-O3"])
@@ -616,7 +645,7 @@ if selected_platform in platform_list:
             print(
                 "Detected mingw version is not using posix threads. Only posix "
                 "version of mingw is supported. "
-                'Use "update-alternatives --config <platform>-w64-mingw32-[gcc|g++]" '
+                'Use "update-alternatives --config x86_64-w64-mingw32-g++" '
                 "to switch to posix threads."
             )
             Exit(255)
@@ -651,16 +680,32 @@ if selected_platform in platform_list:
 
     # Configure compiler warnings
     if env.msvc:  # MSVC
-        # Truncations, narrowing conversions, signed/unsigned comparisons...
-        disable_nonessential_warnings = ["/wd4267", "/wd4244", "/wd4305", "/wd4018", "/wd4800"]
-        if env["warnings"] == "extra":
-            env.Append(CCFLAGS=["/Wall"])  # Implies /W4
-        elif env["warnings"] == "all":
-            env.Append(CCFLAGS=["/W3"] + disable_nonessential_warnings)
-        elif env["warnings"] == "moderate":
-            env.Append(CCFLAGS=["/W2"] + disable_nonessential_warnings)
-        else:  # 'no'
+        if env["warnings"] == "no":
             env.Append(CCFLAGS=["/w"])
+        else:
+            if env["warnings"] == "extra":
+                env.Append(CCFLAGS=["/W4"])
+            elif env["warnings"] == "all":
+                env.Append(CCFLAGS=["/W3"])
+            elif env["warnings"] == "moderate":
+                env.Append(CCFLAGS=["/W2"])
+            # Disable warnings which we don't plan to fix.
+
+            env.Append(
+                CCFLAGS=[
+                    "/wd4100",  # C4100 (unreferenced formal parameter): Doesn't play nice with polymorphism.
+                    "/wd4127",  # C4127 (conditional expression is constant)
+                    "/wd4201",  # C4201 (non-standard nameless struct/union): Only relevant for C89.
+                    "/wd4244",  # C4244 C4245 C4267 (narrowing conversions): Unavoidable at this scale.
+                    "/wd4245",
+                    "/wd4267",
+                    "/wd4305",  # C4305 (truncation): double to float or real_t, too hard to avoid.
+                    "/wd4514",  # C4514 (unreferenced inline function has been removed)
+                    "/wd4714",  # C4714 (function marked as __forceinline not inlined)
+                    "/wd4820",  # C4820 (padding added after construct)
+                ]
+            )
+
         # Set exception handling model to avoid warnings caused by Windows system headers.
         env.Append(CCFLAGS=["/EHsc"])
 
@@ -671,6 +716,14 @@ if selected_platform in platform_list:
 
         if methods.using_gcc(env):
             common_warnings += ["-Wshadow-local", "-Wno-misleading-indentation"]
+            if cc_version_major == 7:  # Bogus warning fixed in 8+.
+                common_warnings += ["-Wno-strict-overflow"]
+            if cc_version_major < 11:
+                # Regression in GCC 9/10, spams so much in our variadic templates
+                # that we need to outright disable it.
+                common_warnings += ["-Wno-type-limits"]
+            if cc_version_major >= 12:  # False positives in our error macros, see GH-58747.
+                common_warnings += ["-Wno-return-type"]
         elif methods.using_clang(env) or methods.using_emcc(env):
             # We often implement `operator<` for structs of pointers as a requirement
             # for putting them in `Set` or `Map`. We don't mind about unreliable ordering.
@@ -686,13 +739,16 @@ if selected_platform in platform_list:
                         "-Wduplicated-branches",
                         "-Wduplicated-cond",
                         "-Wstringop-overflow=4",
-                        "-Wlogical-op",
                     ]
                 )
-                # -Wnoexcept was removed temporarily due to GH-36325.
                 env.Append(CXXFLAGS=["-Wplacement-new=1"])
+                # Need to fix a warning with AudioServer lambdas before enabling.
+                # if cc_version_major != 9:  # GCC 9 had a regression (GH-36325).
+                #    env.Append(CXXFLAGS=["-Wnoexcept"])
                 if cc_version_major >= 9:
                     env.Append(CCFLAGS=["-Wattribute-alias=2"])
+                if cc_version_major >= 11:  # Broke on MethodBind templates before GCC 11.
+                    env.Append(CCFLAGS=["-Wlogical-op"])
             elif methods.using_clang(env) or methods.using_emcc(env):
                 env.Append(CCFLAGS=["-Wimplicit-fallthrough"])
         elif env["warnings"] == "all":
@@ -704,15 +760,6 @@ if selected_platform in platform_list:
 
         if env["werror"]:
             env.Append(CCFLAGS=["-Werror"])
-            # FIXME: Temporary workaround after the Vulkan merge, remove once warnings are fixed.
-            if methods.using_gcc(env):
-                env.Append(CXXFLAGS=["-Wno-error=cpp"])
-                if cc_version_major == 7:  # Bogus warning fixed in 8+.
-                    env.Append(CCFLAGS=["-Wno-error=strict-overflow"])
-                if cc_version_major >= 12:  # False positives in our error macros, see GH-58747.
-                    env.Append(CCFLAGS=["-Wno-error=return-type"])
-            elif methods.using_clang(env) or methods.using_emcc(env):
-                env.Append(CXXFLAGS=["-Wno-error=#warnings"])
 
     if hasattr(detect, "get_program_suffix"):
         suffix = "." + detect.get_program_suffix()
@@ -723,7 +770,7 @@ if selected_platform in platform_list:
     if env.dev_build:
         suffix += ".dev"
 
-    if env_base["float"] == "64":
+    if env_base["precision"] == "double":
         suffix += ".double"
 
     suffix += "." + env["arch"]
@@ -775,6 +822,7 @@ if selected_platform in platform_list:
 
     methods.generate_version_header(env.module_version_string)
 
+    env["PROGSUFFIX_WRAP"] = suffix + env.module_version_string + ".console" + env["PROGSUFFIX"]
     env["PROGSUFFIX"] = suffix + env.module_version_string + env["PROGSUFFIX"]
     env["OBJSUFFIX"] = suffix + env["OBJSUFFIX"]
     # (SH)LIBSUFFIX will be used for our own built libraries
@@ -789,26 +837,6 @@ if selected_platform in platform_list:
         env["LIBSUFFIXES"] += [env["LIBSUFFIX"], env["SHLIBSUFFIX"]]
     env["LIBSUFFIX"] = suffix + env["LIBSUFFIX"]
     env["SHLIBSUFFIX"] = suffix + env["SHLIBSUFFIX"]
-
-    disabled_classes = []
-
-    if env["build_feature_profile"] != "":
-        print("Using build feature profile: " + env["build_feature_profile"])
-        import json
-
-        try:
-            ft = json.load(open(env["build_feature_profile"]))
-            if "disabled_classes" in ft:
-                disabled_classes = ft["disabled_classes"]
-            if "disabled_build_options" in ft:
-                dbo = ft["disabled_build_options"]
-                for c in dbo:
-                    env[c] = dbo[c]
-        except:
-            print("Error opening feature build profile: " + env["build_feature_profile"])
-            Exit(255)
-
-    methods.write_disabled_classes(disabled_classes)
 
     if env["disable_3d"]:
         if env.editor_build:
@@ -896,7 +924,7 @@ if selected_platform in platform_list:
             print("Error: The `vsproj` option is only usable on Windows with Visual Studio.")
             Exit(255)
         env["CPPPATH"] = [Dir(path) for path in env["CPPPATH"]]
-        methods.generate_vs_project(env, GetOption("num_jobs"))
+        methods.generate_vs_project(env, GetOption("num_jobs"), env["vsproj_name"])
         methods.generate_cpp_hint_file("cpp.hint")
 
     # Check for the existence of headers

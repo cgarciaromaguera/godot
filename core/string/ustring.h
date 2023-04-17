@@ -1,32 +1,32 @@
-/*************************************************************************/
-/*  ustring.h                                                            */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
+/**************************************************************************/
+/*  ustring.h                                                             */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
 
 #ifndef USTRING_GODOT_H
 #define USTRING_GODOT_H
@@ -156,6 +156,7 @@ public:
 
 	void operator=(const char *p_cstr);
 	bool operator<(const CharString &p_right) const;
+	bool operator==(const CharString &p_right) const;
 	CharString &operator+=(char p_char);
 	int length() const { return size() ? size() - 1 : 0; }
 	const char *get_data() const;
@@ -320,6 +321,8 @@ public:
 	static String chr(char32_t p_char);
 	static String md5(const uint8_t *p_md5);
 	static String hex_encode_buffer(const uint8_t *p_buffer, int p_len);
+	Vector<uint8_t> hex_decode() const;
+
 	bool is_numeric() const;
 
 	double to_float() const;
@@ -334,6 +337,7 @@ public:
 	static double to_float(const char *p_str);
 	static double to_float(const wchar_t *p_str, const wchar_t **r_end = nullptr);
 	static double to_float(const char32_t *p_str, const char32_t **r_end = nullptr);
+	static uint32_t num_characters(int64_t p_int);
 
 	String capitalize() const;
 	String to_camel_case() const;
@@ -345,10 +349,10 @@ public:
 	String get_slice(String p_splitter, int p_slice) const;
 	String get_slicec(char32_t p_splitter, int p_slice) const;
 
-	Vector<String> split(const String &p_splitter, bool p_allow_empty = true, int p_maxsplit = 0) const;
-	Vector<String> rsplit(const String &p_splitter, bool p_allow_empty = true, int p_maxsplit = 0) const;
+	Vector<String> split(const String &p_splitter = "", bool p_allow_empty = true, int p_maxsplit = 0) const;
+	Vector<String> rsplit(const String &p_splitter = "", bool p_allow_empty = true, int p_maxsplit = 0) const;
 	Vector<String> split_spaces() const;
-	Vector<float> split_floats(const String &p_splitter, bool p_allow_empty = true) const;
+	Vector<double> split_floats(const String &p_splitter, bool p_allow_empty = true) const;
 	Vector<float> split_floats_mk(const Vector<String> &p_splitters, bool p_allow_empty = true) const;
 	Vector<int> split_ints(const String &p_splitter, bool p_allow_empty = true) const;
 	Vector<int> split_ints_mk(const Vector<String> &p_splitters, bool p_allow_empty = true) const;
@@ -424,15 +428,15 @@ public:
 	String c_escape_multiline() const;
 	String c_unescape() const;
 	String json_escape() const;
-	String word_wrap(int p_chars_per_line) const;
 	Error parse_url(String &r_scheme, String &r_host, int &r_port, String &r_path) const;
 
 	String property_name_encode() const;
 
 	// node functions
-	static const String invalid_node_name_characters;
+	static String get_invalid_node_name_characters();
 	String validate_node_name() const;
 	String validate_identifier() const;
+	String validate_filename() const;
 
 	bool is_valid_identifier() const;
 	bool is_valid_int() const;
@@ -454,6 +458,7 @@ public:
 	Vector<uint8_t> to_utf8_buffer() const;
 	Vector<uint8_t> to_utf16_buffer() const;
 	Vector<uint8_t> to_utf32_buffer() const;
+	Vector<uint8_t> to_wchar_buffer() const;
 
 	String(const char *p_str);
 	String(const wchar_t *p_str);

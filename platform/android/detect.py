@@ -24,7 +24,11 @@ def can_build():
 def get_opts():
     return [
         ("ANDROID_SDK_ROOT", "Path to the Android SDK", get_env_android_sdk_root()),
-        ("ndk_platform", 'Target platform (android-<api>, e.g. "android-24")', "android-24"),
+        (
+            "ndk_platform",
+            'Target platform (android-<api>, e.g. "android-' + str(get_min_target_api()) + '")',
+            "android-" + str(get_min_target_api()),
+        ),
     ]
 
 
@@ -44,6 +48,11 @@ def get_android_ndk_root(env):
 # This is kept in sync with the value in 'platform/android/java/app/config.gradle'.
 def get_ndk_version():
     return "23.2.8568313"
+
+
+# This is kept in sync with the value in 'platform/android/java/app/config.gradle'.
+def get_min_target_api():
+    return 21
 
 
 def get_flags():
@@ -87,30 +96,26 @@ def configure(env: "Environment"):
         )
         sys.exit()
 
+    if get_min_sdk_version(env["ndk_platform"]) < get_min_target_api():
+        print(
+            "WARNING: minimum supported Android target api is %d. Forcing target api %d."
+            % (get_min_target_api(), get_min_target_api())
+        )
+        env["ndk_platform"] = "android-" + str(get_min_target_api())
+
     install_ndk_if_needed(env)
     ndk_root = env["ANDROID_NDK_ROOT"]
 
     # Architecture
 
-    if get_min_sdk_version(env["ndk_platform"]) < 21 and env["arch"] in ["x86_64", "arm64"]:
-        print(
-            'WARNING: arch="%s" is not supported with "ndk_platform" lower than "android-21". Forcing platform 21.'
-            % env["arch"]
-        )
-        env["ndk_platform"] = "android-21"
-
     if env["arch"] == "arm32":
         target_triple = "armv7a-linux-androideabi"
-        env.extra_suffix = ".armv7" + env.extra_suffix
     elif env["arch"] == "arm64":
         target_triple = "aarch64-linux-android"
-        env.extra_suffix = ".armv8" + env.extra_suffix
     elif env["arch"] == "x86_32":
         target_triple = "i686-linux-android"
-        env.extra_suffix = ".x86" + env.extra_suffix
     elif env["arch"] == "x86_64":
         target_triple = "x86_64-linux-android"
-        env.extra_suffix = ".x86_64" + env.extra_suffix
 
     target_option = ["-target", target_triple + str(get_min_sdk_version(env["ndk_platform"]))]
     env.Append(ASFLAGS=[target_option, "-c"])
@@ -156,22 +161,15 @@ def configure(env: "Environment"):
     env["RANLIB"] = compiler_path + "/llvm-ranlib"
     env["AS"] = compiler_path + "/clang"
 
-    # Disable exceptions and rtti on non-tools (template) builds
-    if env.editor_build:
-        env.Append(CXXFLAGS=["-frtti"])
-    elif env["builtin_icu"]:
-        env.Append(CXXFLAGS=["-frtti", "-fno-exceptions"])
-    else:
-        env.Append(CXXFLAGS=["-fno-rtti", "-fno-exceptions"])
-        # Don't use dynamic_cast, necessary with no-rtti.
-        env.Append(CPPDEFINES=["NO_SAFE_CAST"])
+    # Disable exceptions on template builds
+    if not env.editor_build:
+        env.Append(CXXFLAGS=["-fno-exceptions"])
 
     env.Append(
         CCFLAGS=(
             "-fpic -ffunction-sections -funwind-tables -fstack-protector-strong -fvisibility=hidden -fno-strict-aliasing".split()
         )
     )
-    env.Append(CPPDEFINES=["NO_STATVFS", "GLES_ENABLED"])
 
     if get_min_sdk_version(env["ndk_platform"]) >= 24:
         env.Append(CPPDEFINES=[("_FILE_OFFSET_BITS", 64)])
@@ -193,10 +191,14 @@ def configure(env: "Environment"):
     env.Append(LINKFLAGS="-Wl,-soname,libgodot_android.so")
 
     env.Prepend(CPPPATH=["#platform/android"])
-    env.Append(CPPDEFINES=["ANDROID_ENABLED", "UNIX_ENABLED", "NO_FCNTL"])
-    env.Append(LIBS=["OpenSLES", "EGL", "GLESv2", "android", "log", "z", "dl"])
+    env.Append(CPPDEFINES=["ANDROID_ENABLED", "UNIX_ENABLED"])
+    env.Append(LIBS=["OpenSLES", "EGL", "android", "log", "z", "dl"])
 
     if env["vulkan"]:
         env.Append(CPPDEFINES=["VULKAN_ENABLED"])
         if not env["use_volk"]:
             env.Append(LIBS=["vulkan"])
+
+    if env["opengl3"]:
+        env.Append(CPPDEFINES=["GLES3_ENABLED"])
+        env.Append(LIBS=["GLESv3"])

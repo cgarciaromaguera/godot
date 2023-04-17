@@ -63,7 +63,7 @@ vec3 oct_to_vec3(vec2 e) {
 	vec3 v = vec3(e.xy, 1.0 - abs(e.x) - abs(e.y));
 	float t = max(-v.z, 0.0);
 	v.xy += t * -sign(v.xy);
-	return v;
+	return normalize(v);
 }
 
 /* Varyings */
@@ -112,9 +112,15 @@ layout(location = 9) out highp float dp_clip;
 // !BAS! This needs to become an input once we implement our fallback!
 #define ViewIndex 0
 #endif
+vec3 multiview_uv(vec2 uv) {
+	return vec3(uv, ViewIndex);
+}
 #else
 // Set to zero, not supported in non stereo
 #define ViewIndex 0
+vec2 multiview_uv(vec2 uv) {
+	return uv;
+}
 #endif //USE_MULTIVIEW
 
 invariant gl_Position;
@@ -308,9 +314,11 @@ void main() {
 #ifdef USE_MULTIVIEW
 	mat4 projection_matrix = scene_data.projection_matrix_view[ViewIndex];
 	mat4 inv_projection_matrix = scene_data.inv_projection_matrix_view[ViewIndex];
+	vec3 eye_offset = scene_data.eye_offset[ViewIndex].xyz;
 #else
 	mat4 projection_matrix = scene_data.projection_matrix;
 	mat4 inv_projection_matrix = scene_data.inv_projection_matrix;
+	vec3 eye_offset = vec3(0.0, 0.0, 0.0);
 #endif //USE_MULTIVIEW
 
 //using world coordinates
@@ -339,8 +347,6 @@ void main() {
 #CODE : VERTEX
 	}
 
-	/* output */
-
 // using local coordinates (default)
 #if !defined(SKIP_TRANSFORM_USED) && !defined(VERTEX_WORLD_COORDS_USED)
 
@@ -353,7 +359,7 @@ void main() {
 		vertex = mat3(matrix) * vertex;
 		model_origin = double_add_vec3(model_origin, model_precision, matrix[3].xyz, vec3(0.0), model_precision);
 	}
-	vertex = mat3(model_matrix) * vertex;
+	vertex = mat3(inv_view_matrix * modelview) * vertex;
 	vec3 temp_precision;
 	vertex += double_add_vec3(model_origin, model_precision, scene_data.inv_view_matrix[3].xyz, view_precision, temp_precision);
 	vertex = mat3(scene_data.view_matrix) * vertex;
@@ -523,9 +529,15 @@ layout(location = 9) highp in float dp_clip;
 // !BAS! This needs to become an input once we implement our fallback!
 #define ViewIndex 0
 #endif
+vec3 multiview_uv(vec2 uv) {
+	return vec3(uv, ViewIndex);
+}
 #else
 // Set to zero, not supported in non stereo
 #define ViewIndex 0
+vec2 multiview_uv(vec2 uv) {
+	return uv;
+}
 #endif //USE_MULTIVIEW
 
 //defines to keep compatibility with vertex
@@ -659,8 +671,10 @@ void main() {
 	//lay out everything, whatever is unused is optimized away anyway
 	vec3 vertex = vertex_interp;
 #ifdef USE_MULTIVIEW
-	vec3 view = -normalize(vertex_interp - scene_data.eye_offset[ViewIndex].xyz);
+	vec3 eye_offset = scene_data.eye_offset[ViewIndex].xyz;
+	vec3 view = -normalize(vertex_interp - eye_offset);
 #else
+	vec3 eye_offset = vec3(0.0, 0.0, 0.0);
 	vec3 view = -normalize(vertex_interp);
 #endif
 	vec3 albedo = vec3(1.0);
@@ -779,7 +793,8 @@ void main() {
 
 // alpha hash can be used in unison with alpha antialiasing
 #ifdef ALPHA_HASH_USED
-	if (alpha < compute_alpha_hash_threshold(vertex, alpha_hash_scale)) {
+	vec3 object_pos = (inverse(read_model_matrix) * inv_view_matrix * vec4(vertex, 1.0)).xyz;
+	if (alpha < compute_alpha_hash_threshold(object_pos, alpha_hash_scale)) {
 		discard;
 	}
 #endif // ALPHA_HASH_USED
@@ -865,7 +880,7 @@ void main() {
 		uint decal_indices = draw_call.decals.x;
 		for (uint i = 0; i < 8; i++) {
 			uint decal_index = decal_indices & 0xFF;
-			if (i == 4) {
+			if (i == 3) {
 				decal_indices = draw_call.decals.y;
 			} else {
 				decal_indices = decal_indices >> 8;
@@ -986,12 +1001,12 @@ void main() {
 #ifdef USE_RADIANCE_CUBEMAP_ARRAY
 
 		float lod, blend;
-		blend = modf(roughness * MAX_ROUGHNESS_LOD, lod);
+		blend = modf(sqrt(roughness) * MAX_ROUGHNESS_LOD, lod);
 		specular_light = texture(samplerCubeArray(radiance_cubemap, material_samplers[SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP]), vec4(ref_vec, lod)).rgb;
 		specular_light = mix(specular_light, texture(samplerCubeArray(radiance_cubemap, material_samplers[SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP]), vec4(ref_vec, lod + 1)).rgb, blend);
 
 #else // USE_RADIANCE_CUBEMAP_ARRAY
-		specular_light = textureLod(samplerCube(radiance_cubemap, material_samplers[SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP]), ref_vec, roughness * MAX_ROUGHNESS_LOD).rgb;
+		specular_light = textureLod(samplerCube(radiance_cubemap, material_samplers[SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP]), ref_vec, sqrt(roughness) * MAX_ROUGHNESS_LOD).rgb;
 
 #endif //USE_RADIANCE_CUBEMAP_ARRAY
 		specular_light *= sc_luminance_multiplier;
@@ -1041,7 +1056,7 @@ void main() {
 
 		float horizon = min(1.0 + dot(ref_vec, normal), 1.0);
 		ref_vec = scene_data.radiance_inverse_xform * ref_vec;
-		float roughness_lod = mix(0.001, 0.1, clearcoat_roughness) * MAX_ROUGHNESS_LOD;
+		float roughness_lod = mix(0.001, 0.1, sqrt(clearcoat_roughness)) * MAX_ROUGHNESS_LOD;
 #ifdef USE_RADIANCE_CUBEMAP_ARRAY
 
 		float lod, blend;
@@ -1147,7 +1162,7 @@ void main() {
 
 		for (uint i = 0; i < 8; i++) {
 			uint reflection_index = reflection_indices & 0xFF;
-			if (i == 4) {
+			if (i == 3) {
 				reflection_indices = draw_call.reflection_probes.y;
 			} else {
 				reflection_indices = reflection_indices >> 8;
@@ -1172,8 +1187,14 @@ void main() {
 	} //Reflection probes
 
 	// finalize ambient light here
-	ambient_light *= albedo.rgb;
-	ambient_light *= ao;
+	{
+#if defined(AMBIENT_LIGHT_DISABLED)
+		ambient_light = vec3(0.0, 0.0, 0.0);
+#else
+		ambient_light *= albedo.rgb;
+		ambient_light *= ao;
+#endif // AMBIENT_LIGHT_DISABLED
+	}
 
 	// convert ao to direct light ao
 	ao = mix(1.0, ao, ao_light_affect);
@@ -1198,7 +1219,7 @@ void main() {
 		float a004 = min(r.x * r.x, exp2(-9.28 * ndotv)) * r.x + r.y;
 		vec2 env = vec2(-1.04, 1.04) * a004 + r.zw;
 
-		specular_light *= env.x * f0 + env.y;
+		specular_light *= env.x * f0 + env.y * clamp(50.0 * f0.g, metallic, 1.0);
 #endif
 	}
 
@@ -1508,6 +1529,8 @@ void main() {
 			} else {
 				shadow = float(shadow1 >> ((i - 4) * 8) & 0xFF) / 255.0;
 			}
+
+			shadow = mix(1.0, shadow, directional_lights.data[i].shadow_opacity);
 #endif
 			blur_shadow(shadow);
 
@@ -1544,7 +1567,7 @@ void main() {
 		uint light_indices = draw_call.omni_lights.x;
 		for (uint i = 0; i < 8; i++) {
 			uint light_index = light_indices & 0xFF;
-			if (i == 4) {
+			if (i == 3) {
 				light_indices = draw_call.omni_lights.y;
 			} else {
 				light_indices = light_indices >> 8;
@@ -1589,7 +1612,7 @@ void main() {
 		uint light_indices = draw_call.spot_lights.x;
 		for (uint i = 0; i < 8; i++) {
 			uint light_index = light_indices & 0xFF;
-			if (i == 4) {
+			if (i == 3) {
 				light_indices = draw_call.spot_lights.y;
 			} else {
 				light_indices = light_indices >> 8;

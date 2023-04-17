@@ -1,32 +1,32 @@
-/*************************************************************************/
-/*  gdscript_highlighter.cpp                                             */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
+/**************************************************************************/
+/*  gdscript_highlighter.cpp                                              */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
 
 #include "gdscript_highlighter.h"
 #include "../gdscript.h"
@@ -43,26 +43,28 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 
 	String prev_text = "";
 	int prev_column = 0;
-
 	bool prev_is_char = false;
 	bool prev_is_digit = false;
 	bool prev_is_binary_op = false;
+
 	bool in_keyword = false;
 	bool in_word = false;
 	bool in_number = false;
-	bool in_function_name = false;
-	bool in_lambda = false;
-	bool in_variable_declaration = false;
-	bool in_signal_declaration = false;
-	bool in_function_args = false;
-	bool in_member_variable = false;
 	bool in_node_path = false;
 	bool in_node_ref = false;
 	bool in_annotation = false;
 	bool in_string_name = false;
 	bool is_hex_notation = false;
 	bool is_bin_notation = false;
+	bool in_member_variable = false;
+	bool in_lambda = false;
+
+	bool in_function_name = false;
+	bool in_function_args = false;
+	bool in_variable_declaration = false;
+	bool in_signal_declaration = false;
 	bool expect_type = false;
+
 	Color keyword_color;
 	Color color;
 
@@ -113,10 +115,10 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			}
 
 			if (from != line_length) {
-				/* check if we are in entering a region */
+				// Check if we are in entering a region.
 				if (in_region == -1) {
 					for (int c = 0; c < color_regions.size(); c++) {
-						/* check there is enough room */
+						// Check there is enough room.
 						int chars_left = line_length - from;
 						int start_key_length = color_regions[c].start_key.length();
 						int end_key_length = color_regions[c].end_key.length();
@@ -124,7 +126,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 							continue;
 						}
 
-						/* search the line */
+						// Search the line.
 						bool match = true;
 						const char32_t *start_key = color_regions[c].start_key.get_data();
 						for (int k = 0; k < start_key_length; k++) {
@@ -139,7 +141,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 						in_region = c;
 						from += start_key_length;
 
-						/* check if it's the whole line */
+						// Check if it's the whole line.
 						if (end_key_length == 0 || color_regions[c].line_only || from + end_key_length > line_length) {
 							if (from + end_key_length > line_length) {
 								// If it's key length and there is a '\', dont skip to highlight esc chars.
@@ -164,7 +166,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 					}
 				}
 
-				/* if we are in one find the end key */
+				// If we are in one, find the end key.
 				if (in_region != -1) {
 					Color region_color = color_regions[in_region].color;
 					if (in_node_path && (color_regions[in_region].start_key == "\"" || color_regions[in_region].start_key == "\'")) {
@@ -181,7 +183,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 					highlighter_info["color"] = region_color;
 					color_map[j] = highlighter_info;
 
-					/* search the line */
+					// Search the line.
 					int region_end_index = -1;
 					int end_key_length = color_regions[in_region].end_key.length();
 					const char32_t *end_key = color_regions[in_region].end_key.get_data();
@@ -241,16 +243,21 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			}
 		}
 
-		// A bit of a hack, but couldn't come up with anything better.
+		// VERY hacky... but couldn't come up with anything better.
 		if (j > 0 && (str[j] == '&' || str[j] == '^' || str[j] == '%' || str[j] == '+' || str[j] == '-' || str[j] == '~' || str[j] == '.')) {
-			if (prev_text == "true" || prev_text == "false" || prev_text == "self" || prev_text == "null" || prev_text == "PI" || prev_text == "TAU" || prev_text == "INF" || prev_text == "NAN") {
-				is_binary_op = true;
-			} else if (!keywords.has(prev_text)) {
-				int k = j - 1;
-				while (k > 0 && is_whitespace(str[k])) {
-					k--;
-				}
-				if (!is_symbol(str[k]) || str[k] == '"' || str[k] == '\'' || str[k] == ')' || str[k] == ']' || str[k] == '}') {
+			int to = j - 1;
+			// Find what the last text was (prev_text won't work if there's no whitespace, so we need to do it manually).
+			while (to > 0 && is_whitespace(str[to])) {
+				to--;
+			}
+			int from = to;
+			while (from > 0 && !is_symbol(str[from])) {
+				from--;
+			}
+			String word = str.substr(from + 1, to - from);
+			// Keywords need to be exceptions, except for keywords that represent a value.
+			if (word == "true" || word == "false" || word == "null" || word == "PI" || word == "TAU" || word == "INF" || word == "NAN" || word == "self" || word == "super" || !reserved_keywords.has(word)) {
+				if (!is_symbol(str[to]) || str[to] == '"' || str[to] == '\'' || str[to] == ')' || str[to] == ']' || str[to] == '}') {
 					is_binary_op = true;
 				}
 			}
@@ -260,14 +267,14 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			in_keyword = false;
 		}
 
-		// allow ABCDEF in hex notation
+		// Allow ABCDEF in hex notation.
 		if (is_hex_notation && (is_hex_digit(str[j]) || is_a_digit)) {
 			is_a_digit = true;
 		} else {
 			is_hex_notation = false;
 		}
 
-		// disallow anything not a 0 or 1 in binary notation
+		// Disallow anything not a 0 or 1 in binary notation.
 		if (is_bin_notation && !is_binary_digit(str[j])) {
 			is_a_digit = false;
 			is_bin_notation = false;
@@ -277,7 +284,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			in_number = true;
 		}
 
-		// Special cases for numbers
+		// Special cases for numbers.
 		if (in_number && !is_a_digit) {
 			if (str[j] == 'b' && str[j - 1] == '0') {
 				is_bin_notation = true;
@@ -285,20 +292,32 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 				is_hex_notation = true;
 			} else if (!((str[j] == '-' || str[j] == '+') && str[j - 1] == 'e' && !prev_is_digit) &&
 					!(str[j] == '_' && (prev_is_digit || str[j - 1] == 'b' || str[j - 1] == 'x' || str[j - 1] == '.')) &&
-					!((str[j] == 'e' || str[j] == '.') && (prev_is_digit || str[j - 1] == '_')) &&
-					!((str[j] == '-' || str[j] == '+' || str[j] == '~') && !prev_is_binary_op && str[j - 1] != 'e')) {
-				/* 1st row of condition: '+' or '-' after scientific notation;
-				2nd row of condition: '_' as a numeric separator;
-				3rd row of condition: Scientific notation 'e' and floating points;
-				4th row of condition: Multiple unary operators. */
+					!(str[j] == 'e' && (prev_is_digit || str[j - 1] == '_')) &&
+					!(str[j] == '.' && (prev_is_digit || (!prev_is_binary_op && (j > 0 && (str[j - 1] == '-' || str[j - 1] == '+' || str[j - 1] == '~'))))) &&
+					!((str[j] == '-' || str[j] == '+' || str[j] == '~') && !is_binary_op && !prev_is_binary_op && str[j - 1] != 'e')) {
+				/* This condition continues number highlighting in special cases.
+				1st row: '+' or '-' after scientific notation (like 3e-4);
+				2nd row: '_' as a numeric separator;
+				3rd row: Scientific notation 'e' and floating points;
+				4th row: Floating points inside the number, or leading if after a unary mathematical operator;
+				5th row: Multiple unary mathematical operators (like ~-7)*/
 				in_number = false;
 			}
-		} else if ((str[j] == '-' || str[j] == '+' || str[j] == '~' || (str[j] == '.' && str[j + 1] != '.' && (j == 0 || (j > 0 && str[j - 1] != '.')))) && !is_binary_op) {
-			// Start a number from unary mathematical operators and floating points, except for '..'
+		} else if (str[j] == '.' && !is_binary_op && is_digit(str[j + 1]) && (j == 0 || (j > 0 && str[j - 1] != '.'))) {
+			// Start number highlighting from leading decimal points (like .42)
 			in_number = true;
+		} else if ((str[j] == '-' || str[j] == '+' || str[j] == '~') && !is_binary_op) {
+			// Only start number highlighting on unary operators if a digit follows them.
+			int non_op = j + 1;
+			while (str[non_op] == '-' || str[non_op] == '+' || str[non_op] == '~') {
+				non_op++;
+			}
+			if (is_digit(str[non_op]) || (str[non_op] == '.' && non_op < line_length && is_digit(str[non_op + 1]))) {
+				in_number = true;
+			}
 		}
 
-		if (!in_word && (is_ascii_char(str[j]) || is_underscore(str[j])) && !in_number) {
+		if (!in_word && is_unicode_identifier_start(str[j]) && !in_number) {
 			in_word = true;
 		}
 
@@ -313,10 +332,10 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			}
 
 			String word = str.substr(j, to - j);
-			Color col = Color();
+			Color col;
 			if (global_functions.has(word)) {
 				// "assert" and "preload" are reserved, so highlight even if not followed by a bracket.
-				if (word == "assert" || word == "preload") {
+				if (word == GDScriptTokenizer::get_token_name(GDScriptTokenizer::Token::ASSERT) || word == GDScriptTokenizer::get_token_name(GDScriptTokenizer::Token::PRELOAD)) {
 					col = global_function_color;
 				} else {
 					// For other global functions, check if followed by bracket.
@@ -329,8 +348,10 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 						col = global_function_color;
 					}
 				}
-			} else if (keywords.has(word)) {
-				col = keywords[word];
+			} else if (class_names.has(word)) {
+				col = class_names[word];
+			} else if (reserved_keywords.has(word)) {
+				col = reserved_keywords[word];
 			} else if (member_keywords.has(word)) {
 				col = member_keywords[word];
 			}
@@ -338,7 +359,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			if (col != Color()) {
 				for (int k = j - 1; k >= 0; k--) {
 					if (str[k] == '.') {
-						col = Color(); // keyword, member & global func indexing not allowed
+						col = Color(); // Keyword, member & global func indexing not allowed.
 						break;
 					} else if (str[k] > 32) {
 						break;
@@ -361,7 +382,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 					k++;
 				}
 
-				// check for space between name and bracket
+				// Check for space between name and bracket.
 				while (k < line_length && is_whitespace(str[k])) {
 					k++;
 				}
@@ -406,11 +427,11 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 				in_function_args = false;
 			}
 
-			if (expect_type && (prev_is_char || str[j] == '=')) {
+			if (expect_type && (prev_is_char || str[j] == '=') && str[j] != '[') {
 				expect_type = false;
 			}
 
-			if (j > 0 && str[j] == '>' && str[j - 1] == '-') {
+			if (j > 0 && str[j - 1] == '-' && str[j] == '>') {
 				expect_type = true;
 			}
 
@@ -434,7 +455,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			in_member_variable = false;
 		}
 
-		// Keep symbol color for binary '&&'. In the case of '&&&' use StringName color for the last ampersand
+		// Keep symbol color for binary '&&'. In the case of '&&&' use StringName color for the last ampersand.
 		if (!in_string_name && in_region == -1 && str[j] == '&' && !is_binary_op) {
 			if (j >= 2 && str[j - 1] == '&' && str[j - 2] != '&' && prev_is_binary_op) {
 				is_binary_op = true;
@@ -445,7 +466,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 			in_string_name = false;
 		}
 
-		// '^^' has no special meaning, so unlike StringName, when binary, use NodePath color for the last caret
+		// '^^' has no special meaning, so unlike StringName, when binary, use NodePath color for the last caret.
 		if (!in_node_path && in_region == -1 && str[j] == '^' && !is_binary_op && (j == 0 || (j > 0 && str[j - 1] != '^') || prev_is_binary_op)) {
 			in_node_path = true;
 		} else if (in_region != -1 || is_a_symbol) {
@@ -454,7 +475,8 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 
 		if (!in_node_ref && in_region == -1 && (str[j] == '$' || (str[j] == '%' && !is_binary_op))) {
 			in_node_ref = true;
-		} else if (in_region != -1 || (is_a_symbol && str[j] != '/' && str[j] != '%')) {
+		} else if (in_region != -1 || (is_a_symbol && str[j] != '/' && str[j] != '%') || (is_a_digit && j > 0 && (str[j - 1] == '$' || str[j - 1] == '/' || str[j - 1] == '%'))) {
+			// NodeRefs can't start with digits, so point out wrong syntax immediately.
 			in_node_ref = false;
 		}
 
@@ -514,7 +536,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 				prev_type = current_type;
 				current_type = next_type;
 
-				// no need to store regions...
+				// No need to store regions...
 				if (prev_type == REGION) {
 					prev_text = "";
 					prev_column = j;
@@ -522,7 +544,7 @@ Dictionary GDScriptSyntaxHighlighter::_get_line_syntax_highlighting_impl(int p_l
 					String text = str.substr(prev_column, j - prev_column).strip_edges();
 					prev_column = j;
 
-					// ignore if just whitespace
+					// Ignore if just whitespace.
 					if (!text.is_empty()) {
 						prev_text = text;
 					}
@@ -554,7 +576,8 @@ PackedStringArray GDScriptSyntaxHighlighter::_get_supported_languages() const {
 }
 
 void GDScriptSyntaxHighlighter::_update_cache() {
-	keywords.clear();
+	class_names.clear();
+	reserved_keywords.clear();
 	member_keywords.clear();
 	global_functions.clear();
 	color_regions.clear();
@@ -571,7 +594,7 @@ void GDScriptSyntaxHighlighter::_update_cache() {
 	List<StringName> types;
 	ClassDB::get_class_list(&types);
 	for (const StringName &E : types) {
-		keywords[E] = types_color;
+		class_names[E] = types_color;
 	}
 
 	/* User types. */
@@ -579,14 +602,14 @@ void GDScriptSyntaxHighlighter::_update_cache() {
 	List<StringName> global_classes;
 	ScriptServer::get_global_class_list(&global_classes);
 	for (const StringName &E : global_classes) {
-		keywords[E] = usertype_color;
+		class_names[E] = usertype_color;
 	}
 
 	/* Autoloads. */
 	for (const KeyValue<StringName, ProjectSettings::AutoloadInfo> &E : ProjectSettings::get_singleton()->get_autoload_list()) {
 		const ProjectSettings::AutoloadInfo &info = E.value;
 		if (info.is_singleton) {
-			keywords[info.name] = usertype_color;
+			class_names[info.name] = usertype_color;
 		}
 	}
 
@@ -597,7 +620,7 @@ void GDScriptSyntaxHighlighter::_update_cache() {
 	List<String> core_types;
 	gdscript->get_core_type_words(&core_types);
 	for (const String &E : core_types) {
-		keywords[StringName(E)] = basetype_color;
+		class_names[StringName(E)] = basetype_color;
 	}
 
 	/* Reserved words. */
@@ -607,9 +630,9 @@ void GDScriptSyntaxHighlighter::_update_cache() {
 	gdscript->get_reserved_words(&keyword_list);
 	for (const String &E : keyword_list) {
 		if (gdscript->is_control_flow_keyword(E)) {
-			keywords[StringName(E)] = control_flow_keyword_color;
+			reserved_keywords[StringName(E)] = control_flow_keyword_color;
 		} else {
-			keywords[StringName(E)] = keyword_color;
+			reserved_keywords[StringName(E)] = keyword_color;
 		}
 	}
 
@@ -644,23 +667,23 @@ void GDScriptSyntaxHighlighter::_update_cache() {
 		add_color_region(beg, end, string_color, end.is_empty());
 	}
 
-	const Ref<Script> script = _get_edited_resource();
-	if (script.is_valid()) {
+	const Ref<Script> scr = _get_edited_resource();
+	if (scr.is_valid()) {
 		/* Member types. */
 		const Color member_variable_color = EDITOR_GET("text_editor/theme/highlighting/member_variable_color");
-		StringName instance_base = script->get_instance_base_type();
+		StringName instance_base = scr->get_instance_base_type();
 		if (instance_base != StringName()) {
 			List<PropertyInfo> plist;
 			ClassDB::get_property_list(instance_base, &plist);
 			for (const PropertyInfo &E : plist) {
-				String name = E.name;
+				String prop_name = E.name;
 				if (E.usage & PROPERTY_USAGE_CATEGORY || E.usage & PROPERTY_USAGE_GROUP || E.usage & PROPERTY_USAGE_SUBGROUP) {
 					continue;
 				}
-				if (name.contains("/")) {
+				if (prop_name.contains("/")) {
 					continue;
 				}
-				member_keywords[name] = member_variable_color;
+				member_keywords[prop_name] = member_variable_color;
 			}
 
 			List<String> clist;
@@ -671,7 +694,7 @@ void GDScriptSyntaxHighlighter::_update_cache() {
 		}
 	}
 
-	const String text_edit_color_theme = EditorSettings::get_singleton()->get("text_editor/theme/color_theme");
+	const String text_edit_color_theme = EDITOR_GET("text_editor/theme/color_theme");
 	const bool godot_2_theme = text_edit_color_theme == "Godot 2";
 
 	if (godot_2_theme || EditorSettings::get_singleton()->is_dark_theme()) {

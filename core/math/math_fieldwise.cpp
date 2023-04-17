@@ -1,32 +1,32 @@
-/*************************************************************************/
-/*  math_fieldwise.cpp                                                   */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
+/**************************************************************************/
+/*  math_fieldwise.cpp                                                    */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
 
 #ifdef TOOLS_ENABLED
 
@@ -215,22 +215,22 @@ Variant fieldwise_assign(const Variant &p_target, const Variant &p_source, const
 		case Variant::PROJECTION: {
 			SETUP_TYPE(Projection)
 
-			/**/ TRY_TRANSFER_FIELD("xx", matrix[0].x)
-			else TRY_TRANSFER_FIELD("xy", matrix[0].y)
-			else TRY_TRANSFER_FIELD("xz", matrix[0].z)
-			else TRY_TRANSFER_FIELD("xw", matrix[0].w)
-			else TRY_TRANSFER_FIELD("yx", matrix[1].x)
-			else TRY_TRANSFER_FIELD("yy", matrix[1].y)
-			else TRY_TRANSFER_FIELD("yz", matrix[1].z)
-			else TRY_TRANSFER_FIELD("yw", matrix[1].w)
-			else TRY_TRANSFER_FIELD("zx", matrix[2].x)
-			else TRY_TRANSFER_FIELD("zy", matrix[2].y)
-			else TRY_TRANSFER_FIELD("zz", matrix[2].z)
-			else TRY_TRANSFER_FIELD("zw", matrix[2].w)
-			else TRY_TRANSFER_FIELD("xo", matrix[3].x)
-			else TRY_TRANSFER_FIELD("yo", matrix[3].y)
-			else TRY_TRANSFER_FIELD("zo", matrix[3].z)
-			else TRY_TRANSFER_FIELD("wo", matrix[3].w)
+			/**/ TRY_TRANSFER_FIELD("xx", columns[0].x)
+			else TRY_TRANSFER_FIELD("xy", columns[0].y)
+			else TRY_TRANSFER_FIELD("xz", columns[0].z)
+			else TRY_TRANSFER_FIELD("xw", columns[0].w)
+			else TRY_TRANSFER_FIELD("yx", columns[1].x)
+			else TRY_TRANSFER_FIELD("yy", columns[1].y)
+			else TRY_TRANSFER_FIELD("yz", columns[1].z)
+			else TRY_TRANSFER_FIELD("yw", columns[1].w)
+			else TRY_TRANSFER_FIELD("zx", columns[2].x)
+			else TRY_TRANSFER_FIELD("zy", columns[2].y)
+			else TRY_TRANSFER_FIELD("zz", columns[2].z)
+			else TRY_TRANSFER_FIELD("zw", columns[2].w)
+			else TRY_TRANSFER_FIELD("xo", columns[3].x)
+			else TRY_TRANSFER_FIELD("yo", columns[3].y)
+			else TRY_TRANSFER_FIELD("zo", columns[3].z)
+			else TRY_TRANSFER_FIELD("wo", columns[3].w)
 
 			return target;
 		}

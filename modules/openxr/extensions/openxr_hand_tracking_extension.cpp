@@ -1,32 +1,32 @@
-/*************************************************************************/
-/*  openxr_hand_tracking_extension.cpp                                   */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
+/**************************************************************************/
+/*  openxr_hand_tracking_extension.cpp                                    */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
 
 #include "openxr_hand_tracking_extension.h"
 #include "../openxr_api.h"
@@ -41,14 +41,8 @@ OpenXRHandTrackingExtension *OpenXRHandTrackingExtension::get_singleton() {
 	return singleton;
 }
 
-OpenXRHandTrackingExtension::OpenXRHandTrackingExtension(OpenXRAPI *p_openxr_api) :
-		OpenXRExtensionWrapper(p_openxr_api) {
+OpenXRHandTrackingExtension::OpenXRHandTrackingExtension() {
 	singleton = this;
-
-	// Extensions we use for our hand tracking.
-	request_extensions[XR_EXT_HAND_TRACKING_EXTENSION_NAME] = &hand_tracking_ext;
-	request_extensions[XR_EXT_HAND_JOINTS_MOTION_RANGE_EXTENSION_NAME] = &hand_motion_range_ext;
-	request_extensions[XR_FB_HAND_TRACKING_AIM_EXTENSION_NAME] = &hand_tracking_aim_state_ext;
 
 	// Make sure this is cleared until we actually request it
 	handTrackingSystemProperties.supportsHandTracking = false;
@@ -56,6 +50,16 @@ OpenXRHandTrackingExtension::OpenXRHandTrackingExtension(OpenXRAPI *p_openxr_api
 
 OpenXRHandTrackingExtension::~OpenXRHandTrackingExtension() {
 	singleton = nullptr;
+}
+
+HashMap<String, bool *> OpenXRHandTrackingExtension::get_requested_extensions() {
+	HashMap<String, bool *> request_extensions;
+
+	request_extensions[XR_EXT_HAND_TRACKING_EXTENSION_NAME] = &hand_tracking_ext;
+	request_extensions[XR_EXT_HAND_JOINTS_MOTION_RANGE_EXTENSION_NAME] = &hand_motion_range_ext;
+	request_extensions[XR_FB_HAND_TRACKING_AIM_EXTENSION_NAME] = &hand_tracking_aim_state_ext;
+
+	return request_extensions;
 }
 
 void OpenXRHandTrackingExtension::on_instance_created(const XrInstance p_instance) {
@@ -102,7 +106,7 @@ void OpenXRHandTrackingExtension::on_state_ready() {
 	// Setup our hands and reset data
 	for (int i = 0; i < MAX_OPENXR_TRACKED_HANDS; i++) {
 		// we'll do this later
-		hand_trackers[i].is_initialised = false;
+		hand_trackers[i].is_initialized = false;
 		hand_trackers[i].hand_tracker = XR_NULL_HANDLE;
 
 		hand_trackers[i].aimState.aimPose = { { 0.0, 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 } };
@@ -127,7 +131,7 @@ void OpenXRHandTrackingExtension::on_process() {
 	}
 
 	// process our hands
-	const XrTime time = openxr_api->get_next_frame_time(); // This data will be used for the next frame we render
+	const XrTime time = OpenXRAPI::get_singleton()->get_next_frame_time(); // This data will be used for the next frame we render
 
 	XrResult result;
 
@@ -140,11 +144,11 @@ void OpenXRHandTrackingExtension::on_process() {
 				XR_HAND_JOINT_SET_DEFAULT_EXT, // handJointSet
 			};
 
-			result = xrCreateHandTrackerEXT(openxr_api->get_session(), &createInfo, &hand_trackers[i].hand_tracker);
+			result = xrCreateHandTrackerEXT(OpenXRAPI::get_singleton()->get_session(), &createInfo, &hand_trackers[i].hand_tracker);
 			if (XR_FAILED(result)) {
 				// not successful? then we do nothing.
-				print_line("OpenXR: Failed to obtain hand tracking information [", openxr_api->get_error_string(result), "]");
-				hand_trackers[i].is_initialised = false;
+				print_line("OpenXR: Failed to obtain hand tracking information [", OpenXRAPI::get_singleton()->get_error_string(result), "]");
+				hand_trackers[i].is_initialized = false;
 			} else {
 				void *next_pointer = nullptr;
 				if (hand_tracking_aim_state_ext) {
@@ -172,11 +176,11 @@ void OpenXRHandTrackingExtension::on_process() {
 				hand_trackers[i].locations.jointCount = XR_HAND_JOINT_COUNT_EXT;
 				hand_trackers[i].locations.jointLocations = hand_trackers[i].joint_locations;
 
-				hand_trackers[i].is_initialised = true;
+				hand_trackers[i].is_initialized = true;
 			}
 		}
 
-		if (hand_trackers[i].is_initialised) {
+		if (hand_trackers[i].is_initialized) {
 			void *next_pointer = nullptr;
 
 			XrHandJointsMotionRangeInfoEXT motionRangeInfo;
@@ -192,14 +196,14 @@ void OpenXRHandTrackingExtension::on_process() {
 			XrHandJointsLocateInfoEXT locateInfo = {
 				XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT, // type
 				next_pointer, // next
-				openxr_api->get_play_space(), // baseSpace
+				OpenXRAPI::get_singleton()->get_play_space(), // baseSpace
 				time, // time
 			};
 
 			result = xrLocateHandJointsEXT(hand_trackers[i].hand_tracker, &locateInfo, &hand_trackers[i].locations);
 			if (XR_FAILED(result)) {
 				// not successful? then we do nothing.
-				print_line("OpenXR: Failed to get tracking for hand", i, "[", openxr_api->get_error_string(result), "]");
+				print_line("OpenXR: Failed to get tracking for hand", i, "[", OpenXRAPI::get_singleton()->get_error_string(result), "]");
 				continue;
 			}
 
@@ -240,7 +244,7 @@ void OpenXRHandTrackingExtension::cleanup_hand_tracking() {
 		if (hand_trackers[i].hand_tracker != XR_NULL_HANDLE) {
 			xrDestroyHandTrackerEXT(hand_trackers[i].hand_tracker);
 
-			hand_trackers[i].is_initialised = false;
+			hand_trackers[i].is_initialized = false;
 			hand_trackers[i].hand_tracker = XR_NULL_HANDLE;
 		}
 	}

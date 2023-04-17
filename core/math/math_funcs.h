@@ -1,36 +1,37 @@
-/*************************************************************************/
-/*  math_funcs.h                                                         */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
+/**************************************************************************/
+/*  math_funcs.h                                                          */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
 
 #ifndef MATH_FUNCS_H
 #define MATH_FUNCS_H
 
+#include "core/error/error_macros.h"
 #include "core/math/math_defs.h"
 #include "core/math/random_pcg.h"
 #include "core/typedefs.h"
@@ -184,6 +185,9 @@ public:
 #endif
 	}
 
+	static _ALWAYS_INLINE_ bool is_finite(double p_val) { return isfinite(p_val); }
+	static _ALWAYS_INLINE_ bool is_finite(float p_val) { return isfinite(p_val); }
+
 	static _ALWAYS_INLINE_ double abs(double g) { return absd(g); }
 	static _ALWAYS_INLINE_ float abs(float g) { return absf(g); }
 	static _ALWAYS_INLINE_ int abs(int g) { return g > 0 ? g : -g; }
@@ -222,6 +226,7 @@ public:
 	}
 
 	static _ALWAYS_INLINE_ int64_t posmod(int64_t p_x, int64_t p_y) {
+		ERR_FAIL_COND_V_MSG(p_y == 0, 0, "Division by zero in posmod is undefined. Returning 0 as fallback.");
 		int64_t value = p_x % p_y;
 		if (((value < 0) && (p_y > 0)) || ((value > 0) && (p_y < 0))) {
 			value += p_y;
@@ -361,6 +366,26 @@ public:
 		return p_start * omt3 + p_control_1 * omt2 * p_t * 3.0f + p_control_2 * omt * t2 * 3.0f + p_end * t3;
 	}
 
+	static _ALWAYS_INLINE_ double bezier_derivative(double p_start, double p_control_1, double p_control_2, double p_end, double p_t) {
+		/* Formula from Wikipedia article on Bezier curves. */
+		double omt = (1.0 - p_t);
+		double omt2 = omt * omt;
+		double t2 = p_t * p_t;
+
+		double d = (p_control_1 - p_start) * 3.0 * omt2 + (p_control_2 - p_control_1) * 6.0 * omt * p_t + (p_end - p_control_2) * 3.0 * t2;
+		return d;
+	}
+
+	static _ALWAYS_INLINE_ float bezier_derivative(float p_start, float p_control_1, float p_control_2, float p_end, float p_t) {
+		/* Formula from Wikipedia article on Bezier curves. */
+		float omt = (1.0f - p_t);
+		float omt2 = omt * omt;
+		float t2 = p_t * p_t;
+
+		float d = (p_control_1 - p_start) * 3.0f * omt2 + (p_control_2 - p_control_1) * 6.0f * omt * p_t + (p_end - p_control_2) * 3.0f * t2;
+		return d;
+	}
+
 	static _ALWAYS_INLINE_ double lerp_angle(double p_from, double p_to, double p_weight) {
 		double difference = fmod(p_to - p_from, Math_TAU);
 		double distance = fmod(2.0 * difference, Math_TAU) - difference;
@@ -430,7 +455,10 @@ public:
 	}
 	static _ALWAYS_INLINE_ double wrapf(double value, double min, double max) {
 		double range = max - min;
-		double result = is_zero_approx(range) ? min : value - (range * Math::floor((value - min) / range));
+		if (is_zero_approx(range)) {
+			return min;
+		}
+		double result = value - (range * Math::floor((value - min) / range));
 		if (is_equal_approx(result, max)) {
 			return min;
 		}
@@ -438,7 +466,10 @@ public:
 	}
 	static _ALWAYS_INLINE_ float wrapf(float value, float min, float max) {
 		float range = max - min;
-		float result = is_zero_approx(range) ? min : value - (range * Math::floor((value - min) / range));
+		if (is_zero_approx(range)) {
+			return min;
+		}
+		float result = value - (range * Math::floor((value - min) / range));
 		if (is_equal_approx(result, max)) {
 			return min;
 		}
